@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BeHappyTalk | Provider Portal</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    /* Cyber Cyan Theme */
+    :root {
+      --bg-darker: #05070A;
+      --bg: #0A0D14;
+      --surface: #121620;
+      --surface-light: #1A202E;
+      --primary: #00F5FF;         /* Cyber Cyan */
+      --primary-dim: rgba(0, 245, 255, 0.15);
+      --accent: #3A8DFF;          /* Sky Blue */
+      --text: #F0F4F8;
+      --text-dim: #94A3B8;
+      --border: rgba(0, 245, 255, 0.1);
+      --danger: #FF4D4D;
+      --success: #00FF94;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: var(--bg-darker); color: var(--text); height: 100vh; overflow: hidden;
+    }
+
+    button, input { border: none; outline: none; font-family: inherit; }
+    
+    /* Transitions */
+    .fade-in { animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    /* Login Screen */
+    #login-screen {
+      display: flex; align-items: center; justify-content: center; height: 100vh;
+      background: radial-gradient(circle at center, #121620 0%, #05070A 100%);
+    }
+    .login-box {
+      background: var(--surface); padding: 40px; border-radius: 20px; width: 380px;
+      border: 1px solid var(--border); box-shadow: 0 0 40px rgba(0, 245, 255, 0.05);
+    }
+    .login-box h2 { 
+      margin: 0 0 8px; text-align: center; color: var(--primary); font-size: 28px;
+    }
+    .login-box p { 
+      text-align: center; color: var(--text-dim); margin: 0 0 32px; font-size: 14px;
+    }
+    .input-grp { margin-bottom: 20px; }
+    .input-grp label { display: block; font-size: 11px; text-transform: uppercase; color: var(--primary); letter-spacing: 1px; margin-bottom: 8px; font-weight: 600; }
+    .input-grp input { 
+      width: 100%; background: var(--bg-darker); color: var(--text); padding: 14px; 
+      border-radius: 12px; border: 1px solid var(--border); transition: 0.2s;
+    }
+    .input-grp input:focus { border-color: var(--primary); box-shadow: 0 0 10px var(--primary-dim); }
+    .btn-login { 
+      width: 100%; background: var(--primary); color: var(--bg-darker); font-weight: bold; 
+      padding: 16px; border-radius: 12px; cursor: pointer; font-size: 16px; transition: 0.2s;
+      box-shadow: 0 4px 15px rgba(0, 245, 255, 0.2);
+    }
+    .btn-login:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0, 245, 255, 0.3); }
+
+    /* App Container */
+    #app-container { display: none; height: 100vh; }
+    
+    /* Sidebar Navigation */
+    .sidebar {
+      width: 260px; background: var(--surface); border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; padding: 24px 0;
+    }
+    .logo { padding: 0 24px 32px; display: flex; align-items: center; gap: 12px; }
+    .logo i { font-size: 24px; color: var(--primary); }
+    .logo span { font-weight: 800; font-size: 20px; letter-spacing: -0.5px; }
+
+    .nav-items { flex: 1; }
+    .nav-item {
+      padding: 14px 24px; display: flex; align-items: center; gap: 14px; cursor: pointer;
+      color: var(--text-dim); transition: 0.2s; border-right: 3px solid transparent;
+    }
+    .nav-item:hover { color: var(--text); background: var(--primary-dim); }
+    .nav-item.active { 
+       color: var(--primary); background: var(--primary-dim); border-right-color: var(--primary);
+    }
+    .nav-item i { width: 20px; text-align: center; }
+
+    .sidebar-footer { padding: 24px; border-top: 1px solid var(--border); }
+    .profile-card {
+      display: flex; align-items: center; gap: 12px; background: var(--bg-darker);
+      padding: 12px; border-radius: 12px; cursor: pointer; transition: 0.2s;
+    }
+    .profile-card:hover { background: var(--surface-light); }
+    .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--primary); color: var(--bg-darker); display: flex; align-items: center; justify-content: center; font-weight: bold; }
+    .profile-info { flex: 1; min-width: 0; }
+    .p-name { display: block; font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .p-status { display: block; font-size: 10px; color: var(--success); }
+
+    /* Main Content Area */
+    .main-wrapper { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
+    header {
+      padding: 20px 32px; display: flex; justify-content: space-between; align-items: center;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+    }
+    header h1 { margin: 0; font-size: 18px; font-weight: 600; }
+
+    .content-area { flex: 1; overflow-y: auto; padding: 32px; }
+    .view-content { display: none; }
+    .view-content.active { display: block; animation: fadeIn 0.3s ease; }
+
+    /* Dashboard View */
+    .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-bottom: 32px; }
+    .stat-card {
+      background: var(--surface); padding: 24px; border-radius: 16px; border: 1px solid var(--border);
+      display: flex; align-items: center; gap: 20px;
+    }
+    .stat-icon {
+      width: 54px; height: 54px; border-radius: 14px; background: var(--primary-dim);
+      color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 24px;
+    }
+    .stat-info .label { display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-info .value { display: block; font-size: 24px; font-weight: 700; color: var(--text); }
+    
+    .recent-activity { background: var(--surface); border-radius: 20px; border: 1px solid var(--border); padding: 24px; }
+    .section-title { margin: 0 0 24px; font-size: 16px; font-weight: 600; color: var(--primary); display: flex; align-items: center; gap: 10px; }
+
+    /* Inbox View */
+    .inbox-layout { display: flex; height: calc(100vh - 81px - 64px); /* header + padding */ margin: -32px; }
+    .user-list { width: 300px; border-right: 1px solid var(--border); background: var(--surface); overflow-y: auto; }
+    .user-item { 
+      padding: 20px 24px; border-bottom: 1px solid var(--border); cursor: pointer; transition: 0.2s;
+      display: flex; gap: 12px; align-items: center;
+    }
+    .user-item:hover { background: var(--surface-light); }
+    .user-item.active { background: var(--primary-dim); border-left: 4px solid var(--primary); }
+    .u-avatar { width: 44px; height: 44px; border-radius: 22px; background: #334155; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; color: var(--primary); }
+    .u-info .u-name { display: block; font-weight: 600; margin-bottom: 2px; }
+    .u-info .u-last { display: block; font-size: 12px; color: var(--text-dim); }
+
+    .chat-container { flex: 1; display: flex; flex-direction: column; background: var(--bg-darker); }
+    .chat-header { padding: 20px 24px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+    .chat-header .u-active { font-weight: 600; }
+    .countdown { background: var(--danger); color: white; padding: 4px 12px; border-radius: 12px; font-size: 13px; font-weight: bold; display: none; }
+
+    #messages { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 12px; }
+    .msg-wrap { display: flex; flex-direction: column; }
+    .msg-wrap.me { align-items: flex-end; }
+    .msg-wrap.them { align-items: flex-start; }
+    
+    .msg { 
+      max-width: 70%; padding: 12px 18px; border-radius: 16px; line-height: 1.5; font-size: 14px; position: relative;
+    }
+    .msg-wrap.me .msg { background: var(--primary); color: var(--bg-darker); border-bottom-right-radius: 4px; font-weight: 500; }
+    .msg-wrap.them .msg { background: var(--surface); border-bottom-left-radius: 4px; }
+    .msg-time { font-size: 10px; color: var(--text-dim); margin-top: 4px; }
+
+    .input-bar { padding: 24px; background: var(--surface); display: flex; gap: 16px; align-items: center; display: none; }
+    .input-bar input { flex: 1; background: var(--bg-darker); color: var(--text); padding: 16px 24px; border-radius: 30px; border: 1px solid var(--border); }
+    .send-btn { background: var(--primary); color: var(--bg-darker); width: 44px; height: 44px; border-radius: 22px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+
+    /* Media Overlay (Call/Video) */
+    #media-overlay { 
+      display: none; position: fixed; inset: 0; background: #000; z-index: 1000; flex-direction: column;
+    }
+    .video-viewport { flex: 1; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+    #remote-video { width: 100%; height: 100%; object-fit: cover; }
+    #local-video { position: absolute; top: 32px; right: 32px; width: 180px; height: 120px; border-radius: 12px; border: 2px solid var(--primary); object-fit: cover; }
+    .media-info { position: absolute; top: 32px; left: 32px; }
+    .media-info h2 { margin: 0; font-size: 24px; color: white; }
+    .media-info span { color: var(--primary); font-size: 14px; }
+    
+    .call-controls { 
+       position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); display: flex; gap: 24px; 
+       background: rgba(18, 22, 32, 0.85); padding: 16px 32px; border-radius: 50px; border: 1px solid var(--border); backdrop-filter: blur(20px);
+    }
+    .c-btn { width: 56px; height: 56px; border-radius: 28px; background: rgba(255,255,255,0.1); color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 20px; transition: 0.2s; }
+    .c-btn:hover { background: rgba(255,255,255,0.2); }
+    .c-btn.hangup { background: var(--danger); }
+    .c-btn.hangup:hover { background: #E53E3E; }
+
+    /* Modals */
+    #incoming-modal {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 2000; align-items: center; justify-content: center;
+    }
+    .modal-box {
+      background: var(--surface); padding: 32px; border-radius: 24px; width: 360px; text-align: center; border: 1px solid var(--primary);
+      box-shadow: 0 0 50px var(--primary-dim);
+    }
+    .modal-box h3 { margin: 0 0 12px; color: var(--primary); }
+    .modal-box p { color: var(--text-dim); font-size: 14px; margin: 0 0 32px; line-height: 1.6; }
+    .m-btns { display: flex; gap: 16px; }
+    .m-btn { flex: 1; padding: 14px; border-radius: 12px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+    .btn-acc { background: var(--primary); color: var(--bg-darker); }
+    .btn-rej { background: var(--bg-darker); color: var(--text-dim); border: 1px solid var(--border); }
+    .btn-acc:hover { background: #00E5EE; }
+    .btn-rej:hover { color: var(--text); border-color: var(--danger); }
+
+    .empty-chat { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-dim); }
+    .empty-chat i { font-size: 64px; margin-bottom: 20px; opacity: 0.1; }
+    
+    /* History Table */
+    .history-card { background: var(--surface); border-radius: 20px; border: 1px solid var(--border); overflow: hidden; }
+    .hist-table { width: 100%; border-collapse: collapse; text-align: left; }
+    .hist-table th { background: var(--bg-darker); padding: 18px 24px; font-size: 11px; text-transform: uppercase; color: var(--primary); letter-spacing: 1px; }
+    .hist-table td { padding: 18px 24px; border-bottom: 1px solid var(--border); font-size: 14px; }
+    .hist-table tr:hover { background: var(--primary-dim); }
+    .type-badge { padding: 4px 8px; border-radius: 6px; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+    .type-chat { background: #3A8DFF20; color: #3A8DFF; }
+    .type-call { background: #00FF9420; color: #00FF94; }
+    .type-video { background: #FACC1520; color: #FACC15; }
+
+  </style>
+</head>
+<body>
+
+  <!-- Login View -->
+  <div id="login-screen" class="fade-in">
+    <div class="login-box">
+      <h2>Provider Portal</h2>
+      <p>Manage your sessions and earnings</p>
+      <div id="error-msg" style="color: var(--danger); font-size: 13px; text-align: center; margin-bottom: 16px;"></div>
+      <div class="input-grp">
+        <label>Phone Number</label>
+        <input type="text" id="login-phone" placeholder="e.g. 1111111111">
+      </div>
+      <div class="input-grp">
+        <label>Password</label>
+        <input type="password" id="login-pwd" placeholder="e.g. password">
+      </div>
+      <button class="btn-login" id="login-btn">LOG IN TO DASHBOARD</button>
+    </div>
+  </div>
+
+  <!-- App Main Layout -->
+  <div id="app-container">
+    <div class="sidebar">
+      <div class="logo">
+        <i class="fas fa-headset"></i>
+        <span>BeHappyTalk</span>
+      </div>
+      <div class="nav-items">
+        <div class="nav-item active" data-view="dashboard">
+          <i class="fas fa-chart-line"></i>
+          <span>Home Dashboard</span>
+        </div>
+        <div class="nav-item" data-view="inbox">
+          <i class="fas fa-comment-dots"></i>
+          <span>Active Inbox</span>
+        </div>
+        <div class="nav-item" data-view="earnings">
+          <i class="fas fa-wallet"></i>
+          <span>Earnings & History</span>
+        </div>
+      </div>
+      <div class="sidebar-footer">
+        <div class="profile-card" id="logout-trigger">
+          <div class="avatar" id="avatar-letter">P</div>
+          <div class="profile-info">
+            <span class="p-name" id="p-name-card">Provider</span>
+            <span class="p-status">● Online</span>
+          </div>
+          <i class="fas fa-sign-out-alt" style="color: var(--text-dim);"></i>
+        </div>
+      </div>
+    </div>
+
+    <div class="main-wrapper">
+      <header>
+        <h1 id="view-title">Home Dashboard</h1>
+        <div style="font-size: 14px; color: var(--text-dim);">
+          <i class="far fa-calendar-alt"></i> <span id="current-date">--</span>
+        </div>
+      </header>
+
+      <div class="content-area">
+        
+        <!-- View: Dashboard -->
+        <div id="view-dashboard" class="view-content active">
+          <div class="stats-row">
+            <div class="stat-card">
+              <div class="stat-icon"><i class="fas fa-clock"></i></div>
+              <div class="stat-info">
+                <span class="label">Session Time</span>
+                <span class="value" id="stat-time">00:00</span>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon"><i class="fas fa-coins"></i></div>
+              <div class="stat-info">
+                <span class="label">Today's Earnings</span>
+                <span class="value" id="stat-today">₹0.00</span>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon" style="background: rgba(0,255,148,0.1); color: var(--success);"><i class="fas fa-wallet"></i></div>
+              <div class="stat-info">
+                <span class="label">Total Balance</span>
+                <span class="value" id="stat-balance">₹0.00</span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="recent-activity">
+            <h3 class="section-title"><i class="fas fa-bolt"></i> Real-time Activity</h3>
+            <div id="activity-list" style="color: var(--text-dim); font-size: 14px;">
+              Waiting for new incoming sessions...
+            </div>
+          </div>
+        </div>
+
+        <!-- View: Inbox -->
+        <div id="view-inbox" class="view-content">
+          <div class="inbox-layout">
+            <div class="user-list" id="user-list-target">
+              <!-- Users here -->
+            </div>
+            <div class="chat-container">
+               <div class="chat-header" id="chat-header-meta" style="display: none;">
+                  <span class="u-active" id="active-chat-name">User Name</span>
+                  <div class="countdown" id="chat-timer">00:00</div>
+               </div>
+               <div id="messages">
+                  <div class="empty-chat">
+                    <i class="fas fa-comments"></i>
+                    <p>Select a user from the list to view chat</p>
+                  </div>
+               </div>
+               <div class="input-bar" id="chat-input-row">
+                  <input type="text" id="msg-input" placeholder="Type your response here...">
+                  <button class="send-btn" id="msg-send"><i class="fas fa-paper-plane"></i></button>
+               </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- View: Earnings -->
+        <div id="view-earnings" class="view-content">
+           <div class="history-card">
+              <table class="hist-table">
+                <thead>
+                  <tr>
+                    <th>Date & Time</th>
+                    <th>Customer</th>
+                    <th>Session</th>
+                    <th>Duration</th>
+                    <th>Earnings</th>
+                  </tr>
+                </thead>
+                <tbody id="history-target">
+                  <!-- History rows here -->
+                </tbody>
+              </table>
+           </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Call Overlay -->
+  <div id="media-overlay">
+    <div class="media-info">
+      <h2 id="media-name">User</h2>
+      <span id="media-desc">Incoming Voice Call...</span>
+    </div>
+    <div class="video-viewport">
+       <video id="remote-video" autoplay playsinline></video>
+       <audio id="remote-audio" autoplay playsinline></audio>
+       <video id="local-video" autoplay playsinline muted></video>
+    </div>
+    <div class="call-controls">
+       <div class="c-btn" id="call-mic"><i class="fas fa-microphone"></i></div>
+       <div class="c-btn" id="call-cam" style="display: none;"><i class="fas fa-video"></i></div>
+       <div class="c-btn hangup" id="call-end"><i class="fas fa-phone-slash"></i></div>
+    </div>
+  </div>
+
+  <!-- Incoming Modal -->
+  <div id="incoming-modal">
+    <div class="modal-box">
+      <div style="font-size: 40px; color: var(--primary); margin-bottom: 20px;"><i class="fas fa-bell"></i></div>
+      <h3>New Session Request</h3>
+      <p id="incoming-msg-text">--</p>
+      <div class="m-btns">
+        <button class="m-btn btn-rej" id="m-btn-rej">REJECT</button>
+        <button class="m-btn btn-acc" id="m-btn-acc">ACCEPT</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let socket;
+    let provider = null;
+    let users = [];
+    let activeUserId = null;
+    let currentSessionId = null;
+    let timeRemaining = 0;
+    let timerInt = null;
+
+    // Local Persistence
+    const saved = localStorage.getItem('bt_provider');
+    if (saved) {
+      provider = JSON.parse(saved);
+      initApp();
+    }
+
+    // Date
+    document.getElementById('current-date').innerText = new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'short' });
+
+    // Login
+    document.getElementById('login-btn').onclick = async () => {
+      const phone = document.getElementById('login-phone').value;
+      const pwd = document.getElementById('login-pwd').value;
+      const res = await fetch('/api/provider/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, password: pwd })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        provider = data;
+        localStorage.setItem('bt_provider', JSON.stringify(provider));
+        initApp();
+      } else {
+        document.getElementById('error-msg').innerText = data.error;
+      }
+    };
+
+    function initApp() {
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('app-container').style.display = 'flex';
+      document.getElementById('p-name-card').innerText = provider.name || provider.phone;
+      document.getElementById('avatar-letter').innerText = (provider.name || 'P').charAt(0).toUpperCase();
+
+      socket = io();
+      socket.emit('provider_online', { providerId: provider.id });
+
+      // Views Swapping
+      document.querySelectorAll('.nav-item').forEach(btn => {
+        btn.onclick = () => {
+          document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          document.querySelectorAll('.view-content').forEach(v => v.classList.remove('active'));
+          const viewId = 'view-' + btn.dataset.view;
+          document.getElementById(viewId).classList.add('active');
+          document.getElementById('view-title').innerText = btn.querySelector('span').innerText;
+          if (btn.dataset.view === 'inbox') fetchInbox();
+          if (btn.dataset.view === 'earnings') fetchHistory();
+        };
+      });
+
+      // Stats Fetch
+      fetchStats();
+      socket.on('wallet_update', fetchStats);
+
+      // Session UI Logic
+      socket.on('incoming_request', (req) => {
+        const modal = document.getElementById('incoming-modal');
+        document.getElementById('incoming-msg-text').innerText = `${req.userName} is requesting a ${req.type} for ${req.duration} minutes.`;
+        modal.style.display = 'flex';
+        
+        document.getElementById('m-btn-acc').onclick = () => {
+          socket.emit('accept_interaction', { ...req, providerId: provider.id });
+          modal.style.display = 'none';
+          document.querySelector('[data-view="inbox"]').click(); // Jump to inbox
+          const u = { id: req.userId, name: req.userName };
+          if (!users.find(x => x.id === u.id)) users.unshift(u);
+          activeUserId = u.id; // SET ACTIVE USER IMMEDIATELY
+          openChat(u);
+        };
+        
+        document.getElementById('m-btn-rej').onclick = () => {
+           socket.emit('reject_interaction', { userId: req.userId, providerId: provider.id });
+           modal.style.display = 'none';
+        }
+      });
+
+      socket.on('request_cancelled', () => {
+        document.getElementById('incoming-modal').style.display = 'none';
+      });
+
+      socket.on('session_started', ({ sessionId, type, duration }) => {
+        currentSessionId = sessionId;
+        timeRemaining = duration * 60;
+        document.getElementById('chat-timer').style.display = 'block';
+        updateTimer();
+        if (timerInt) clearInterval(timerInt);
+        timerInt = setInterval(() => {
+          timeRemaining--;
+          updateTimer();
+          if (timeRemaining <= 0) clearInterval(timerInt);
+        }, 1000);
+
+        if (type !== 'Chat') startMedia(type);
+      });
+
+      socket.on('session_ended', () => {
+        clearInterval(timerInt);
+        currentSessionId = null; // Clear session reference
+        document.getElementById('chat-timer').style.display = 'none';
+        document.getElementById('chat-input-row').style.display = 'none';
+        stopMedia();
+        fetchStats();
+        fetchHistory(); // Refresh history real-time
+      });
+
+      socket.on('receive_message', (msg) => {
+        if (activeUserId === msg.userId) renderMsg(msg);
+        fetchInbox();
+      });
+
+      // Logout
+      document.getElementById('logout-trigger').onclick = () => {
+        localStorage.removeItem('bt_provider');
+        window.location.reload();
+      };
+    }
+
+    async function fetchStats() {
+      const res = await fetch(`/api/provider/${provider.id}`);
+      const data = await res.json();
+      document.getElementById('stat-balance').innerText = `₹${data.walletBalance.toFixed(2)}`;
+      // Real-time fake session earnings logic
+      document.getElementById('stat-today').innerText = `₹${(data.walletBalance % 500).toFixed(2)}`;
+    }
+
+    async function fetchHistory() {
+      const res = await fetch(`/api/provider/history/${provider.id}`);
+      const sessions = await res.json();
+      renderHistory(sessions);
+    }
+
+    function renderHistory(sessions) {
+      const list = document.getElementById('history-target');
+      list.innerHTML = sessions.length === 0 ? '<tr><td colspan="5" style="text-align:center; padding: 40px; color: var(--text-dim);">No sessions recorded yet</td></tr>' : '';
+      sessions.forEach(s => {
+        const date = new Date(s.startTime).toLocaleDateString('en-IN', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+        const typeClass = `type-${s.type.toLowerCase()}`;
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td style="font-weight: 500;">${date}</td>
+          <td>${s.userName}</td>
+          <td><span class="type-badge ${typeClass}">${s.type}</span></td>
+          <td style="font-family: monospace;">${s.duration} min</td>
+          <td style="color: var(--success); font-weight: bold;">+ ₹${s.cost.toFixed(2)}</td>
+        `;
+        list.appendChild(row);
+      });
+    }
+
+    async function fetchInbox() {
+      const res = await fetch(`/api/provider/inbox/${provider.id}`);
+      users = await res.json();
+      renderUsers();
+    }
+
+    function renderUsers() {
+      const list = document.getElementById('user-list-target');
+      list.innerHTML = users.length === 0 ? '<div style="padding: 24px; color: var(--text-dim); font-size: 13px;">No active conversations</div>' : '';
+      users.forEach(u => {
+        const div = document.createElement('div');
+        div.className = `user-item ${activeUserId === u.id ? 'active' : ''}`;
+        div.innerHTML = `
+          <div class="u-avatar">${u.name.charAt(0)}</div>
+          <div class="u-info">
+            <span class="u-name">${u.name}</span>
+            <span class="u-last">Click to view chat history</span>
+          </div>
+        `;
+        div.onclick = () => openChat(u);
+        list.appendChild(div);
+      });
+    }
+
+    async function openChat(u) {
+      activeUserId = u.id;
+      document.getElementById('chat-header-meta').style.display = 'flex';
+      document.getElementById('active-chat-name').innerText = u.name;
+      
+      // Initially hide input, only show if we have an active session for THIS user
+      document.getElementById('chat-input-row').style.display = (currentSessionId && activeUserId === u.id) ? 'flex' : 'none';
+      
+      renderUsers();
+      socket.emit('join_chat', { userId: u.id, providerId: provider.id });
+      
+      const res = await fetch(`/api/chat/${u.id}/${provider.id}`);
+      const history = await res.json();
+      const c = document.getElementById('messages');
+      c.innerHTML = '';
+      history.forEach(renderMsg);
+      c.scrollTop = c.scrollHeight;
+    }
+
+    function renderMsg(msg) {
+      const container = document.getElementById('messages');
+      const wrap = document.createElement('div');
+      wrap.className = `msg-wrap ${msg.senderId === provider.id ? 'me' : 'them'}`;
+      const time = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      wrap.innerHTML = `<div class="msg">${msg.text}</div><span class="msg-time">${time}</span>`;
+      container.appendChild(wrap);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function updateTimer() {
+      const m = Math.floor(timeRemaining / 60).toString().padStart(2, '0');
+      const s = (timeRemaining % 60).toString().padStart(2, '0');
+      document.getElementById('chat-timer').innerText = `${m}:${s}`;
+      document.getElementById('stat-time').innerText = `${m}:${s}`;
+    }
+
+      socket.on('webrtc_signal', async ({ signal }) => {
+         console.log('[WebRTC] Signal Received:', signal.type);
+         if (!pc) createPeerConnection();
+         
+         try {
+           if (signal.type==='offer') { 
+             if (pc.signalingState !== 'stable') return console.log('[WebRTC] Offer ignored: state is', pc.signalingState);
+             await pc.setRemoteDescription(new RTCSessionDescription(signal)); 
+             const ans = await pc.createAnswer(); 
+             await pc.setLocalDescription(ans); 
+             socket.emit('webrtc_signal', {to:`chat_${activeUserId}_${provider.id}`, signal: pc.localDescription}); 
+           }
+           else if (signal.type==='answer') { 
+             if (pc.signalingState !== 'have-local-offer') return console.log('[WebRTC] Answer ignored: state is', pc.signalingState);
+             await pc.setRemoteDescription(new RTCSessionDescription(signal)); 
+           }
+           else if (signal.type==='candidate') { 
+             await pc.addIceCandidate(new RTCIceCandidate(signal.candidate)); 
+           }
+         } catch (e) {
+           console.error('[WebRTC] Signaling Error:', e, 'at state:', pc.signalingState);
+         }
+      });
+
+      document.getElementById('call-end').onclick = () => socket.emit('end_interaction', { sessionId: currentSessionId });
+      
+      document.getElementById('msg-send').onclick = () => {
+         const input = document.getElementById('msg-input');
+         if (!input.value.trim()) return;
+         console.log('[Chat] Sending message to:', activeUserId);
+         socket.emit('send_message', { userId: activeUserId, providerId: provider.id, senderId: provider.id, text: input.value });
+         input.value = '';
+      }
+
+      document.getElementById('msg-input').addEventListener('keydown', (e) => {
+         if (e.key === 'Enter') document.getElementById('msg-send').click();
+      });
+    } // end initApp()
+
+    // WebRTC helpers (global, no socket dependency)
+    let pc, localStream;
+    async function startMedia(type) {
+       document.getElementById('media-overlay').style.display = 'flex';
+       document.getElementById('media-name').innerText = document.getElementById('active-chat-name').innerText;
+       document.getElementById('media-desc').innerText = `${type} Call in progress...`;
+       document.getElementById('call-cam').style.display = type === 'Video' ? 'flex' : 'none';
+       document.getElementById('local-video').style.display = type === 'Video' ? 'block' : 'none';
+
+       try {
+          console.log('[Media] Acquiring devices for type:', type);
+          localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: type === 'Video' });
+          document.getElementById('local-video').srcObject = localStream;
+          
+          if (!pc) createPeerConnection();
+          
+          localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+          
+          const offer = await pc.createOffer({
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: type === 'Video'
+          });
+          await pc.setLocalDescription(offer);
+          console.log('[WebRTC] Sending Offer');
+          socket.emit('webrtc_signal', { to: `chat_${activeUserId}_${provider.id}`, signal: {type:'offer', sdp:pc.localDescription}});
+       } catch (e) { console.error('Media Start Error:', e); }
+    }
+
+    function createPeerConnection() {
+      console.log('[WebRTC] Creating RTCPeerConnection');
+      pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+      
+      pc.onicecandidate = e => { 
+        if(e.candidate) {
+          socket.emit('webrtc_signal', { to: `chat_${activeUserId}_${provider.id}`, signal: {type:'candidate', candidate:e.candidate}}); 
+        }
+      };
+      
+      pc.ontrack = e => { 
+        console.log('[WebRTC] Received remote track:', e.track.kind);
+        const stream = e.streams[0] || new MediaStream([e.track]);
+        if (e.track.kind === 'video') {
+         document.getElementById('remote-video').srcObject = stream;
+        } else {
+         document.getElementById('remote-audio').srcObject = stream;
+        }
+      };
+      
+      pc.oniceconnectionstatechange = () => console.log('[WebRTC] ICE State:', pc.iceConnectionState);
+    }
+
+    function stopMedia() {
+       if (localStream) localStream.getTracks().forEach(t => t.stop());
+       if (pc) pc.close();
+       pc = null;
+       document.getElementById('media-overlay').style.display = 'none';
+    }
+  </script>
+</body>
+</html>

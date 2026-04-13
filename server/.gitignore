@@ -1,0 +1,5 @@
+node_modules/
+.env
+database.sqlite
+# Note: behappytalk.db is intentionally NOT ignored.
+# It's committed with an empty/seeded state as the starting point for Render.
