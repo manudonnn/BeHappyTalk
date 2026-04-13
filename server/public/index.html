@@ -516,13 +516,52 @@
         localStorage.removeItem('bt_provider');
         window.location.reload();
       };
-    }
+      // Add WebRTC and message DOM events
+      socket.on('webrtc_signal', async ({ signal }) => {
+         console.log('[WebRTC] Signal Received:', signal.type);
+         if (!pc) createPeerConnection();
+         
+         try {
+           if (signal.type==='offer') { 
+             if (pc.signalingState !== 'stable') return console.log('[WebRTC] Offer ignored: state is', pc.signalingState);
+             await pc.setRemoteDescription(new RTCSessionDescription(signal)); 
+             const ans = await pc.createAnswer(); 
+             await pc.setLocalDescription(ans); 
+             socket.emit('webrtc_signal', {to:`chat_${activeUserId}_${provider.id}`, signal: pc.localDescription}); 
+           }
+           else if (signal.type==='answer') { 
+             if (pc.signalingState !== 'have-local-offer') return console.log('[WebRTC] Answer ignored: state is', pc.signalingState);
+             await pc.setRemoteDescription(new RTCSessionDescription(signal)); 
+           }
+           else if (signal.type==='candidate') { 
+             await pc.addIceCandidate(new RTCIceCandidate(signal.candidate)); 
+           }
+         } catch (e) {
+           console.error('[WebRTC] Signaling Error:', e, 'at state:', pc.signalingState);
+         }
+      });
 
+      document.getElementById('call-end').onclick = () => socket.emit('end_interaction', { sessionId: currentSessionId });
+      
+      document.getElementById('msg-send').onclick = () => {
+         const input = document.getElementById('msg-input');
+         if (!input.value.trim()) return;
+         console.log('[Chat] Sending message to:', activeUserId);
+         socket.emit('send_message', { userId: activeUserId, providerId: provider.id, senderId: provider.id, text: input.value });
+         input.value = '';
+      }
+
+      document.getElementById('msg-input').addEventListener('keydown', (e) => {
+         if (e.key === 'Enter') document.getElementById('msg-send').click();
+      });
+
+    } // end initApp()
+
+    // Global Functions
     async function fetchStats() {
       const res = await fetch(`/api/provider/${provider.id}`);
       const data = await res.json();
       document.getElementById('stat-balance').innerText = `₹${data.walletBalance.toFixed(2)}`;
-      // Real-time fake session earnings logic
       document.getElementById('stat-today').innerText = `₹${(data.walletBalance % 500).toFixed(2)}`;
     }
 
@@ -579,7 +618,6 @@
       document.getElementById('chat-header-meta').style.display = 'flex';
       document.getElementById('active-chat-name').innerText = u.name;
       
-      // Initially hide input, only show if we have an active session for THIS user
       document.getElementById('chat-input-row').style.display = (currentSessionId && activeUserId === u.id) ? 'flex' : 'none';
       
       renderUsers();
@@ -609,45 +647,6 @@
       document.getElementById('chat-timer').innerText = `${m}:${s}`;
       document.getElementById('stat-time').innerText = `${m}:${s}`;
     }
-
-      socket.on('webrtc_signal', async ({ signal }) => {
-         console.log('[WebRTC] Signal Received:', signal.type);
-         if (!pc) createPeerConnection();
-         
-         try {
-           if (signal.type==='offer') { 
-             if (pc.signalingState !== 'stable') return console.log('[WebRTC] Offer ignored: state is', pc.signalingState);
-             await pc.setRemoteDescription(new RTCSessionDescription(signal)); 
-             const ans = await pc.createAnswer(); 
-             await pc.setLocalDescription(ans); 
-             socket.emit('webrtc_signal', {to:`chat_${activeUserId}_${provider.id}`, signal: pc.localDescription}); 
-           }
-           else if (signal.type==='answer') { 
-             if (pc.signalingState !== 'have-local-offer') return console.log('[WebRTC] Answer ignored: state is', pc.signalingState);
-             await pc.setRemoteDescription(new RTCSessionDescription(signal)); 
-           }
-           else if (signal.type==='candidate') { 
-             await pc.addIceCandidate(new RTCIceCandidate(signal.candidate)); 
-           }
-         } catch (e) {
-           console.error('[WebRTC] Signaling Error:', e, 'at state:', pc.signalingState);
-         }
-      });
-
-      document.getElementById('call-end').onclick = () => socket.emit('end_interaction', { sessionId: currentSessionId });
-      
-      document.getElementById('msg-send').onclick = () => {
-         const input = document.getElementById('msg-input');
-         if (!input.value.trim()) return;
-         console.log('[Chat] Sending message to:', activeUserId);
-         socket.emit('send_message', { userId: activeUserId, providerId: provider.id, senderId: provider.id, text: input.value });
-         input.value = '';
-      }
-
-      document.getElementById('msg-input').addEventListener('keydown', (e) => {
-         if (e.key === 'Enter') document.getElementById('msg-send').click();
-      });
-    } // end initApp()
 
     // WebRTC helpers (global, no socket dependency)
     let pc, localStream;
