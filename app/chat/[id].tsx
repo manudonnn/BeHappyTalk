@@ -219,13 +219,18 @@ export default function ChatScreen() {
     
     console.log('Mobile setting up PeerConnection');
     pc.current = new RTCPeerConnection({
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            // Placeholder for Metered.ca TURN server - add credentials here later
+            //{ urls: 'turn:global.turn.metered.ca:443', username: '...', credential: '...' }
+        ]
     });
 
     (pc.current as any).onicecandidate = (event: any) => {
         if (event.candidate) {
+            console.log('[WebRTC] Local ICE candidate found');
             socketRef.current?.emit('webrtc_signal', {
-                to: `chat_${user?.id}_${providerId}`,
+                to: `chat_${userId}_${providerId}`,
                 signal: { type: 'candidate', candidate: event.candidate }
             });
         }
@@ -254,9 +259,10 @@ export default function ChatScreen() {
           }) as MediaStream;
 
           setLocalStream(stream);
-          setupPeerConnection(); // Ensure PC exists
-          
+          if (pc.current.signalingState === 'closed') return;
+
           stream.getTracks().forEach(track => {
+              console.log('[WebRTC] Adding track:', track.kind);
               pc.current?.addTrack(track, stream);
           });
       } catch (e) {

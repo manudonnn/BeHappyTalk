@@ -94,7 +94,7 @@ export default function CallView({ type, provider, timeLeft, onEndCall, wallet, 
         <View style={styles.videoPlaceholder}>
            {remoteStream ? (
                 <RTCView
-                    streamURL={remoteStream.toURL ? remoteStream.toURL() : (remoteStream as any)}
+                    stream={remoteStream}
                     style={styles.remoteVideo}
                     objectFit="cover"
                 />
@@ -114,7 +114,7 @@ export default function CallView({ type, provider, timeLeft, onEndCall, wallet, 
         <View style={styles.audioBackground}>
           {remoteStream && (
              <RTCView 
-                streamURL={remoteStream.toURL ? remoteStream.toURL() : (remoteStream as any)} 
+                stream={remoteStream} 
                 style={{ position: 'absolute', opacity: 0 }} 
              />
           )}
@@ -162,7 +162,7 @@ export default function CallView({ type, provider, timeLeft, onEndCall, wallet, 
       {isVideo && localStream && (
         <View style={styles.localPreviewContainer}>
           <RTCView 
-            streamURL={localStream.toURL()} 
+            stream={localStream} 
             style={styles.localCamera} 
             objectFit="cover"
             zOrder={1}

@@ -572,21 +572,32 @@
       // Add WebRTC and message DOM events
       socket.on('webrtc_signal', async ({ signal }) => {
          console.log('[WebRTC] Signal Received:', signal.type);
+         
+         // Auto-open overlay if an offer or candidate comes in and we're not connected
+         if (signal.type === 'offer' || signal.type === 'candidate') {
+            const overlay = document.getElementById('media-overlay');
+            if (overlay.style.display !== 'flex') {
+               overlay.style.display = 'flex';
+               document.getElementById('media-name').innerText = document.getElementById('active-chat-name').innerText || 'User';
+               document.getElementById('media-desc').innerText = 'Connecting Secure Stream...';
+            }
+         }
+
          if (!pc) createPeerConnection();
          
          try {
-           if (signal.type==='offer') { 
+           if (signal.type === 'offer') { 
              if (pc.signalingState !== 'stable') return console.log('[WebRTC] Offer ignored: state is', pc.signalingState);
              await pc.setRemoteDescription(new RTCSessionDescription(signal)); 
              const ans = await pc.createAnswer(); 
              await pc.setLocalDescription(ans); 
-             socket.emit('webrtc_signal', {to:`chat_${activeUserId}_${provider.id}`, signal: pc.localDescription}); 
+             socket.emit('webrtc_signal', { to: `chat_${activeUserId}_${provider.id}`, signal: pc.localDescription }); 
            }
-           else if (signal.type==='answer') { 
+           else if (signal.type === 'answer') { 
              if (pc.signalingState !== 'have-local-offer') return console.log('[WebRTC] Answer ignored: state is', pc.signalingState);
              await pc.setRemoteDescription(new RTCSessionDescription(signal)); 
            }
-           else if (signal.type==='candidate') { 
+           else if (signal.type === 'candidate' && signal.candidate) { 
              await pc.addIceCandidate(new RTCIceCandidate(signal.candidate)); 
            }
          } catch (e) {
@@ -935,10 +946,17 @@
 
     function createPeerConnection() {
       console.log('[WebRTC] Creating RTCPeerConnection');
-      pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+      pc = new RTCPeerConnection({ 
+         iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            // Placeholder for Metered.ca TURN server - add credentials here later
+            //{ urls: 'turn:global.turn.metered.ca:443', username: '...', credential: '...' }
+         ] 
+      });
       
       pc.onicecandidate = e => { 
         if(e.candidate) {
+          console.log('[WebRTC] Local ICE candidate found');
           socket.emit('webrtc_signal', { to: `chat_${activeUserId}_${provider.id}`, signal: {type:'candidate', candidate:e.candidate}}); 
         }
       };
