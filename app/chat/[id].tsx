@@ -221,8 +221,11 @@ export default function ChatScreen() {
     pc.current = new RTCPeerConnection({
         iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
-            // Placeholder for Metered.ca TURN server - add credentials here later
-            //{ urls: 'turn:global.turn.metered.ca:443', username: '...', credential: '...' }
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
+            // Public test TURN servers - replace with Metered.ca for production
+            { urls: 'turn:relay.metered.ca:80', username: 'metered', credential: 'password' },
+            { urls: 'turn:relay.metered.ca:443', username: 'metered', credential: 'password' }
         ]
     });
 
@@ -259,7 +262,9 @@ export default function ChatScreen() {
           }) as MediaStream;
 
           setLocalStream(stream);
-          if (pc.current.signalingState === 'closed') return;
+          setupPeerConnection(); // RESTORED: Initialize connection before adding tracks
+          
+          if (pc.current?.signalingState === 'closed') return;
 
           stream.getTracks().forEach(track => {
               console.log('[WebRTC] Adding track:', track.kind);

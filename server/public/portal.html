@@ -949,8 +949,11 @@
       pc = new RTCPeerConnection({ 
          iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
-            // Placeholder for Metered.ca TURN server - add credentials here later
-            //{ urls: 'turn:global.turn.metered.ca:443', username: '...', credential: '...' }
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
+            // Public test TURN servers - replace with personal Metered.ca credentials for production
+            { urls: 'turn:relay.metered.ca:80', username: 'metered', credential: 'password' },
+            { urls: 'turn:relay.metered.ca:443', username: 'metered', credential: 'password' }
          ] 
       });
       
