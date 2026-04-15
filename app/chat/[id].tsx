@@ -500,7 +500,7 @@ const styles = StyleSheet.create({
   typingBubble: { backgroundColor: '#1E2028', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 16, borderTopLeftRadius: 4, alignSelf: 'flex-start' },
   typingDots: { color: 'rgba(255,255,255,0.45)', fontSize: 10, letterSpacing: 3 },
 
-  inputContainer: { flexDirection: 'row', alignItems: 'flex-end', padding: 12, backgroundColor: '#0A0B10', gap: 10 },
+  inputContainer: { flexDirection: 'row', alignItems: 'flex-end', padding: 12, paddingBottom: Platform.OS === 'android' ? 36 : 12, backgroundColor: '#0A0B10', gap: 10 },
   inputWrapper: { flex: 1, backgroundColor: '#1A1C23', borderRadius: 24, paddingHorizontal: 16, paddingVertical: Platform.OS === 'ios' ? 12 : 8, minHeight: 48, justifyContent: 'center' },
   textInput: { color: 'rgba(255,255,255,0.92)', fontSize: 15, maxHeight: 100 },
   sendButton: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#4C1D95', justifyContent: 'center', alignItems: 'center' },

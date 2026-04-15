@@ -6,6 +6,36 @@ const { Server } = require('socket.io');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('./db');
+const admin = require('firebase-admin');
+
+// Initialize Firebase Admin (Only if service account is provided)
+// Initialize Firebase Admin
+let firebaseInitialized = false;
+try {
+  const fs = require('fs');
+  const path = require('path');
+  const serviceAccountPath = path.join(__dirname, 'firebase-adminsdk.json');
+  
+  if (fs.existsSync(serviceAccountPath)) {
+    const serviceAccount = require(serviceAccountPath);
+    admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+    firebaseInitialized = true;
+    console.log('✅ Firebase Admin Initialized (via JSON file)');
+  } else if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    // Fix for environment variable newline escaping
+    serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+    admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+    firebaseInitialized = true;
+    console.log('✅ Firebase Admin Initialized (via ENV variable)');
+  }
+} catch (e) {
+  console.error('❌ Failed to initialize Firebase Admin:', e.message);
+}
+
+if (!firebaseInitialized) {
+  console.log('⚠️ Firebase OTP verification is currently disabled.');
+}
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_for_local_dev_only';
 const app = express();
@@ -113,6 +143,78 @@ app.post('/api/provider/login', (req, res) => {
     const token = jwt.sign({ id: row.id, phone: row.phone, role: 'provider' }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ id: row.id, name: row.name, phone: row.phone, token });
   });
+});
+
+// Firebase OTP Provider Login
+app.post('/api/provider/firebase-login', async (req, res) => {
+  const { idToken } = req.body;
+  if (!idToken) return res.status(400).json({ error: 'Firebase ID Token required.' });
+
+  try {
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    let phone = decodedToken.phone_number; // e.g. +911111111111
+
+    if (!phone) return res.status(400).json({ error: 'Phone number not found in token.' });
+
+    // Remove country code for matching (if your DB uses plain 10 digits)
+    // Adjust this logic based on how you store phones in DB
+    const cleanPhone = phone.replace('+91', '').replace('+', ''); 
+
+    db.get('SELECT * FROM providers WHERE phone = ? OR phone = ?', [cleanPhone, phone], (err, row) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!row) return res.status(404).json({ error: 'No provider account found for this phone number.' });
+
+      const token = jwt.sign({ id: row.id, phone: row.phone, role: 'provider' }, JWT_SECRET, { expiresIn: '30d' });
+      res.json({ id: row.id, name: row.name, phone: row.phone, token });
+    });
+  } catch (error) {
+    console.error('Firebase Auth Error:', error.message);
+    res.status(401).json({ error: 'Authentication failed. Invalid token.' });
+  }
+});
+
+// Firebase OTP Provider Registration
+app.post('/api/provider/register', async (req, res) => {
+  const { idToken, name, password } = req.body;
+  if (!idToken || !name || !password) {
+    return res.status(400).json({ error: 'Missing required fields (Token, Name, or Password).' });
+  }
+
+  try {
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    const phone = decodedToken.phone_number;
+
+    if (!phone) return res.status(400).json({ error: 'Phone number not found in token.' });
+
+    // Clean phone for DB consistency
+    const cleanPhone = phone.replace('+91', '').replace('+', '');
+
+    // Check if already exists
+    db.get('SELECT * FROM providers WHERE phone = ?', [cleanPhone], async (err, row) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (row) return res.status(400).json({ error: 'Account already exists. Please log in.' });
+
+      try {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const newId = 'p' + Date.now();
+        
+        db.run(
+          'INSERT INTO providers (id, name, phone, password, walletBalance, status) VALUES (?, ?, ?, ?, 0.0, "online")',
+          [newId, name, cleanPhone, hashedPassword],
+          function (err) {
+            if (err) return res.status(500).json({ error: err.message });
+            
+            const token = jwt.sign({ id: newId, phone: cleanPhone, role: 'provider' }, JWT_SECRET, { expiresIn: '30d' });
+            res.json({ id: newId, name, phone: cleanPhone, token });
+          }
+        );
+      } catch (hashErr) {
+        res.status(500).json({ error: 'Error processing password.' });
+      }
+    });
+  } catch (error) {
+    res.status(401).json({ error: 'Authentication failed.' });
+  }
 });
 
 // Get single provider

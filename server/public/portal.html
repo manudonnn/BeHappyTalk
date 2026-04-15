@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShePanel | Dashboard Portal</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    /* Premium Cyber Theme */
+    :root {
+      --bg-darker: #05070A;
+      --bg: #0A0D14;
+      --surface: #121620;
+      --surface-light: #1A202E;
+      --primary: #00F5FF;         /* Cyber Cyan */
+      --primary-dim: rgba(0, 245, 255, 0.15);
+      --accent: #3A8DFF;          /* Sky Blue */
+      --text: #F0F4F8;
+      --text-dim: #94A3B8;
+      --border: rgba(0, 245, 255, 0.12);
+      --danger: #FF4D4D;
+      --success: #00FF94;
+      --glass: rgba(18, 22, 32, 0.85);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: var(--bg-darker); color: var(--text); height: 100vh; overflow: hidden;
+    }
+
+    button, input { border: none; outline: none; font-family: inherit; }
+    
+    /* Transitions */
+    .fade-in { animation: fadeIn 0.4s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Login Screen - Mesh Gradient Style */
+    #login-screen {
+      display: flex; align-items: center; justify-content: center; height: 100vh;
+      background: var(--bg-darker);
+      position: relative;
+      overflow: hidden;
+    }
+    #login-screen::before {
+      content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+      background: radial-gradient(circle at center, rgba(0, 245, 255, 0.05) 0%, transparent 50%),
+                  radial-gradient(circle at 70% 30%, rgba(58, 141, 255, 0.05) 0%, transparent 50%);
+      animation: rotateMesh 20s linear infinite;
+    }
+    @keyframes rotateMesh { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+    .login-box {
+      background: var(--glass); padding: 48px; border-radius: 32px; width: 420px;
+      border: 1px solid var(--border); box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      backdrop-filter: blur(20px);
+      z-index: 10;
+      text-align: center;
+    }
+    .login-box img { height: 120px; margin-bottom: 24px; margin-right: -40px; filter: drop-shadow(0 0 20px var(--primary-dim)); }
+    .login-box h2 { 
+      margin: 0 0 -8px; color: var(--text); font-size: 36px; font-weight: 900; letter-spacing: -2px;
+      display: inline-block; vertical-align: middle;
+    }
+    .login-box p { 
+      color: var(--text-dim); margin: 0 0 40px; font-size: 15px;
+    }
+    .input-grp { margin-bottom: 24px; text-align: left; }
+    .input-grp label { display: block; font-size: 11px; text-transform: uppercase; color: var(--primary); letter-spacing: 1.5px; margin-bottom: 10px; font-weight: 700; }
+    .input-grp input { 
+      width: 100%; background: rgba(0,0,0,0.3); color: var(--text); padding: 16px 20px; 
+      border-radius: 16px; border: 1px solid var(--border); transition: 0.3s;
+      font-size: 15px;
+    }
+    .input-grp input:focus { border-color: var(--primary); box-shadow: 0 0 15px var(--primary-dim); background: rgba(0,0,0,0.5); }
+    
+    .btn-login { 
+      width: 100%; background: var(--primary); color: var(--bg-darker); font-weight: 800; 
+      padding: 18px; border-radius: 16px; cursor: pointer; font-size: 16px; transition: 0.3s;
+      box-shadow: 0 4px 20px rgba(0, 245, 255, 0.3);
+      text-transform: uppercase; letter-spacing: 1px;
+    }
+    .btn-login:hover { transform: translateY(-3px); box-shadow: 0 8px 30px rgba(0, 245, 255, 0.5); }
+
+    /* App Container */
+    #app-container { display: none; height: 100vh; }
+    
+    /* Sidebar Navigation */
+    .sidebar {
+      width: 280px; background: var(--surface); border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; padding: 32px 0;
+      transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .sidebar.collapsed { margin-left: -280px; }
+    
+    .logo-sidebar { padding: 0 32px 40px; display: flex; align-items: center; gap: 0; }
+    .logo-sidebar img { height: 64px; width: auto; object-fit: contain; margin-right: -24px; filter: drop-shadow(0 0 10px var(--primary-dim)); }
+    .logo-sidebar span { font-weight: 800; font-size: 26px; letter-spacing: -1.5px; }
+
+    .nav-items { flex: 1; }
+    .nav-item {
+      padding: 16px 32px; display: flex; align-items: center; gap: 16px; cursor: pointer;
+      color: var(--text-dim); transition: 0.3s; border-right: 4px solid transparent;
+      font-size: 15px; font-weight: 500;
+    }
+    .nav-item:hover { color: var(--text); background: var(--primary-dim); }
+    .nav-item.active { 
+       color: var(--primary); background: var(--primary-dim); border-right-color: var(--primary);
+       font-weight: 700;
+    }
+    .nav-item i { width: 22px; text-align: center; font-size: 18px; }
+
+    .sidebar-footer { padding: 24px; border-top: 1px solid var(--border); }
+    .profile-card {
+      display: flex; align-items: center; gap: 14px; background: var(--bg-darker);
+      padding: 14px; border-radius: 16px; cursor: pointer; transition: 0.3s;
+      border: 1px solid transparent;
+    }
+    .profile-card:hover { background: var(--surface-light); border-color: var(--border); }
+    .avatar { width: 38px; height: 38px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), var(--accent)); color: var(--bg-darker); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 16px; }
+    .profile-info { flex: 1; min-width: 0; }
+    .p-name { display: block; font-weight: 700; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .p-status { display: block; font-size: 11px; color: var(--success); font-weight: 600; }
+
+    /* Main Content Area */
+    .main-wrapper { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
+    header {
+      padding: 18px 40px; display: flex; justify-content: space-between; align-items: center;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+    }
+    .header-left { display: flex; align-items: center; gap: 20px; }
+    .toggle-sidebar { background: var(--primary-dim); color: var(--primary); width: 40px; height: 40px; border-radius: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
+    .toggle-sidebar:hover { background: var(--primary); color: var(--bg-darker); }
+    header h1 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.5px; }
+
+    .content-area { flex: 1; overflow-y: auto; padding: 40px; }
+    .view-content { display: none; }
+    .view-content.active { display: block; animation: fadeIn 0.4s ease-out; }
+
+    /* Stats Cards - Modern Glass */
+    .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; margin-bottom: 40px; }
+    .stat-card {
+      background: var(--surface); padding: 32px; border-radius: 24px; border: 1px solid var(--border);
+      display: flex; align-items: center; gap: 24px; transition: 0.4s;
+    }
+    .stat-card:hover { transform: translateY(-8px); border-color: var(--primary-dim); box-shadow: 0 20px 40px rgba(0,0,0,0.3); }
+    .stat-icon {
+      width: 64px; height: 64px; border-radius: 20px; background: var(--primary-dim);
+      color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 28px;
+    }
+    .stat-info .label { display: block; font-size: 11px; color: var(--text-dim); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700; }
+    .stat-info .value { display: block; font-size: 28px; font-weight: 800; color: var(--text); }
+    
+    .recent-activity { background: var(--surface); border-radius: 24px; border: 1px solid var(--border); padding: 32px; }
+    .section-title { margin: 0 0 24px; font-size: 18px; font-weight: 700; color: var(--primary); display: flex; align-items: center; gap: 12px; }
+
+    /* Inbox View */
+    .inbox-layout { display: flex; height: calc(100vh - 81px - 80px); /* header + padding */ margin: -40px; }
+    .user-list { width: 340px; border-right: 1px solid var(--border); background: var(--surface); overflow-y: auto; }
+    .user-item { 
+      padding: 24px; border-bottom: 1px solid var(--border); cursor: pointer; transition: 0.3s;
+      display: flex; gap: 16px; align-items: center; position: relative;
+    }
+    .user-item:hover { background: var(--surface-light); }
+    .user-item.active { background: var(--primary-dim); border-left: 5px solid var(--primary); }
+    .u-avatar { width: 52px; height: 52px; border-radius: 18px; background: #1E293B; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 20px; color: var(--primary); }
+    .u-info { flex: 1; }
+    .u-info .u-name { display: block; font-weight: 700; margin-bottom: 4px; font-size: 15px; }
+    .u-info .u-last { display: block; font-size: 12px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .chat-container { flex: 1; display: flex; flex-direction: column; background: var(--bg-darker); }
+    .chat-header { padding: 24px 32px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+    .chat-header .u-active { font-weight: 700; font-size: 18px; }
+    .countdown { background: var(--danger); color: white; padding: 6px 16px; border-radius: 12px; font-size: 14px; font-weight: 800; display: none; box-shadow: 0 4px 15px rgba(255, 77, 77, 0.3); }
+
+    #messages { flex: 1; overflow-y: auto; padding: 32px; display: flex; flex-direction: column; gap: 16px; scroll-behavior: smooth; }
+    .msg-wrap { display: flex; flex-direction: column; max-width: 80%; }
+    .msg-wrap.me { align-items: flex-end; align-self: flex-end; }
+    .msg-wrap.them { align-items: flex-start; align-self: flex-start; }
+    
+    .msg { 
+      padding: 14px 20px; border-radius: 20px; line-height: 1.6; font-size: 15px; position: relative;
+    }
+    .msg-wrap.me .msg { background: var(--primary); color: var(--bg-darker); border-bottom-right-radius: 4px; font-weight: 600; box-shadow: 0 4px 15px var(--primary-dim); }
+    .msg-wrap.them .msg { background: var(--surface); border-bottom-left-radius: 4px; border: 1px solid var(--border); }
+    .msg-time { font-size: 10px; color: var(--text-dim); margin-top: 6px; text-transform: uppercase; font-weight: 600; }
+
+    .input-bar { padding: 32px; background: var(--surface); display: flex; gap: 20px; align-items: center; border-top: 1px solid var(--border); }
+    .input-bar input { flex: 1; background: var(--bg-darker); color: var(--text); padding: 18px 28px; border-radius: 100px; border: 1px solid var(--border); font-size: 15px; transition: 0.3s; }
+    .input-bar input:focus { border-color: var(--primary); background: #000; box-shadow: 0 0 15px var(--primary-dim); }
+    .send-btn { background: var(--primary); color: var(--bg-darker); width: 52px; height: 52px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 20px; transition: 0.3s; box-shadow: 0 4px 20px rgba(0, 245, 255, 0.3); }
+    .send-btn:hover { transform: scale(1.1); }
+
+    /* Media Overlay (Call/Video) */
+    #media-overlay { 
+      display: none; position: fixed; inset: 0; background: #000; z-index: 3000; flex-direction: column;
+    }
+    .video-viewport { flex: 1; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+    #remote-video { width: 100%; height: 100%; object-fit: cover; }
+    #local-video { position: absolute; top: 40px; right: 40px; width: 220px; height: 140px; border-radius: 20px; border: 2px solid var(--primary); object-fit: cover; box-shadow: 0 10px 40px rgba(0,0,0,0.8); }
+    .media-info { position: absolute; top: 40px; left: 40px; text-shadow: 0 2px 10px rgba(0,0,0,0.8); }
+    .media-info h2 { margin: 0; font-size: 32px; color: white; font-weight: 800; letter-spacing: -1px; }
+    .media-info span { color: var(--primary); font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+    
+    .call-controls { 
+       position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%); display: flex; gap: 32px; 
+       background: rgba(18, 22, 32, 0.6); padding: 20px 40px; border-radius: 100px; border: 1px solid var(--border); backdrop-filter: blur(40px);
+    }
+    .c-btn { width: 64px; height: 64px; border-radius: 50%; background: rgba(255,255,255,0.08); color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 24px; transition: 0.3s; border: 1px solid rgba(255,255,255,0.1); }
+    .c-btn:hover { background: rgba(255,255,255,0.15); transform: scale(1.1); }
+    .c-btn.hangup { background: var(--danger); box-shadow: 0 0 30px rgba(255, 77, 77, 0.4); border: none; }
+    .c-btn.hangup:hover { background: #E53E3E; }
+
+    /* Modals */
+    #incoming-modal {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 4000; align-items: center; justify-content: center; backdrop-filter: blur(10px);
+    }
+    .modal-box {
+      background: var(--surface); padding: 50px; border-radius: 40px; width: 440px; text-align: center; border: 1px solid var(--primary);
+      box-shadow: 0 0 80px var(--primary-dim);
+    }
+    .modal-box h3 { margin: 0 0 16px; color: var(--text); font-size: 24px; font-weight: 800; }
+    .modal-box p { color: var(--text-dim); font-size: 16px; margin: 0 0 40px; line-height: 1.6; }
+    .m-btns { display: flex; gap: 20px; }
+    .m-btn { flex: 1; padding: 18px; border-radius: 18px; font-weight: 800; cursor: pointer; transition: 0.3s; text-transform: uppercase; font-size: 14px; letter-spacing: 1px; }
+    .btn-acc { background: var(--primary); color: var(--bg-darker); box-shadow: 0 5px 20px var(--primary-dim); }
+    .btn-rej { background: #1E293B; color: var(--text-dim); border: 1px solid var(--border); }
+    .btn-acc:hover { background: #00E5EE; transform: translateY(-3px); }
+    .btn-rej:hover { color: var(--text); border-color: var(--danger); }
+
+    /* History Table */
+    .history-card { background: var(--surface); border-radius: 32px; border: 1px solid var(--border); overflow: hidden; }
+    .hist-table { width: 100%; border-collapse: collapse; text-align: left; }
+    .hist-table th { background: var(--bg-darker); padding: 22px 32px; font-size: 11px; text-transform: uppercase; color: var(--primary); letter-spacing: 2px; font-weight: 800; }
+    .hist-table td { padding: 24px 32px; border-bottom: 1px solid var(--border); font-size: 15px; }
+    .hist-table tr:hover { background: var(--primary-dim); }
+    
+    .type-badge { padding: 6px 14px; border-radius: 10px; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; }
+    .type-chat { background: #3A8DFF20; color: #3A8DFF; }
+    .type-call { background: #00FF9420; color: #00FF94; }
+    .type-video { background: #FACC1520; color: #FACC15; }
+
+    .empty-chat { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-dim); opacity: 0.5; }
+    .empty-chat i { font-size: 80px; margin-bottom: 24px; color: var(--primary); opacity: 0.2; }
+
+  </style>
+</head>
+<body>
+
+  <!-- Login View -->
+  <div id="login-screen" class="fade-in">
+    <div class="login-box">
+      <img src="assets/logo.png" alt="ShePanel Logo">
+      <h2>ShePanel Portal</h2>
+      <p>Manage your professional creator studio</p>
+      <div id="error-msg" style="color: var(--danger); font-size: 13px; text-align: center; margin-bottom: 16px; font-weight: 600;"></div>
+      
+      <div id="recaptcha-container"></div>
+
+      <div class="input-grp">
+        <label>Phone Number</label>
+        <input type="text" id="login-phone" placeholder="e.g. 1111111111">
+      </div>
+
+      <div class="input-grp" id="pwd-grp">
+        <label>Password</label>
+        <input type="password" id="login-pwd" placeholder="Enter your secret key">
+      </div>
+
+      <div class="input-grp" id="otp-grp" style="display: none;">
+        <label>Verification Code</label>
+        <input type="text" id="login-otp" placeholder="Enter 6-digit code">
+      </div>
+
+      <!-- Registration Fields (Hidden by default) -->
+      <div id="signup-extra" style="display: none;">
+        <div class="input-grp">
+          <label>Display Name</label>
+          <input type="text" id="reg-name" placeholder="How users see you">
+        </div>
+        <div class="input-grp">
+          <label>Set Password</label>
+          <input type="password" id="reg-pwd" placeholder="Create a secure key">
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 16px; margin-top: 32px;">
+        <button class="btn-login" id="btn-get-otp" onclick="sendOTP()" style="display: none;">Get OTP</button>
+        <button class="btn-login" id="login-btn">Secure Login</button>
+      </div>
+      
+      <p style="margin-top: 24px; font-size: 16px; font-weight: 600; cursor: pointer; color: var(--primary); text-align: center; text-decoration: underline; opacity: 0.9;" id="auth-toggle">Don't have an account? Join ShePanel</p>
+    </div>
+  </div>
+
+  <!-- App Main Layout -->
+  <div id="app-container">
+    <div class="sidebar">
+      <div class="logo-sidebar">
+        <img src="assets/logo.png" alt="ShePanel Logo">
+        <span>ShePanel</span>
+      </div>
+      <div class="nav-items">
+        <div class="nav-item active" data-view="dashboard">
+          <i class="fas fa-grid-2"></i>
+          <span>Dashboard</span>
+        </div>
+        <div class="nav-item" data-view="inbox">
+          <i class="fas fa-messages"></i>
+          <span>Live Inbox</span>
+        </div>
+        <div class="nav-item" data-view="earnings">
+          <i class="fas fa-wallet"></i>
+          <span>Wallet & History</span>
+        </div>
+      </div>
+      <div class="sidebar-footer">
+        <div class="profile-card" id="logout-trigger">
+          <div class="avatar" id="avatar-letter">P</div>
+          <div class="profile-info">
+            <span class="p-name" id="p-name-card">Creator</span>
+            <span class="p-status">● Live Now</span>
+          </div>
+          <i class="fas fa-power-off" style="color: var(--text-dim); font-size: 18px;"></i>
+        </div>
+      </div>
+    </div>
+
+    <div class="main-wrapper">
+      <header>
+        <div class="header-left">
+          <button class="toggle-sidebar" id="sidebar-toggle"><i class="fas fa-bars-staggered"></i></button>
+          <h1 id="view-title">Studio Dashboard</h1>
+        </div>
+        <div style="font-size: 14px; color: var(--text-dim); font-weight: 600; display: flex; align-items: center; gap: 10px;">
+          <i class="far fa-calendar-check" style="color: var(--primary);"></i> <span id="current-date">--</span>
+        </div>
+      </header>
+
+      <div class="content-area">
+        
+        <!-- View: Dashboard -->
+        <div id="view-dashboard" class="view-content active">
+          <div class="stats-row">
+            <div class="stat-card">
+              <div class="stat-icon"><i class="fas fa-timer"></i></div>
+              <div class="stat-info">
+                <span class="label">Total Live Time</span>
+                <span class="value" id="stat-time">00:00</span>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon" style="color: var(--success);"><i class="fas fa-chart-line-up"></i></div>
+              <div class="stat-info">
+                <span class="label">Daily Gains</span>
+                <span class="value" id="stat-today">₹0.00</span>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon" style="background: rgba(0,255,148,0.1); color: var(--success);"><i class="fas fa-sack-dollar"></i></div>
+              <div class="stat-info">
+                <span class="label">Total Wallet</span>
+                <span class="value" id="stat-balance">₹0.00</span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="recent-activity">
+            <h3 class="section-title"><i class="fas fa-bolt-auto" style="color: #FACC15;"></i> Studio Activity Log</h3>
+            <div id="activity-list" style="color: var(--text-dim); font-size: 15px; font-weight: 500;">
+              Standby. Waiting for new session requests from users...
+            </div>
+          </div>
+        </div>
+
+        <!-- View: Inbox -->
+        <div id="view-inbox" class="view-content">
+          <div class="inbox-layout">
+            <div class="user-list" id="user-list-target">
+              <!-- Users here -->
+            </div>
+            <div class="chat-container">
+               <div class="chat-header" id="chat-header-meta" style="display: none;">
+                  <span class="u-active" id="active-chat-name">User Session</span>
+                  <div class="countdown" id="chat-timer">00:00</div>
+               </div>
+               <div id="messages">
+                  <div class="empty-chat">
+                    <i class="fas fa-comment-smile"></i>
+                    <p>Select an active user to begin the connection</p>
+                  </div>
+               </div>
+               <div class="input-bar" id="chat-input-row">
+                  <input type="text" id="msg-input" placeholder="Compose your response...">
+                  <button class="send-btn" id="msg-send"><i class="fas fa-paper-plane-top"></i></button>
+               </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- View: Earnings -->
+        <div id="view-earnings" class="view-content">
+           <div class="history-card">
+              <table class="hist-table">
+                <thead>
+                  <tr>
+                    <th>Date & Session Start</th>
+                    <th>Username</th>
+                    <th>Media Type</th>
+                    <th>Duration</th>
+                    <th>Wallet Credit</th>
+                  </tr>
+                </thead>
+                <tbody id="history-target">
+                  <!-- History rows here -->
+                </tbody>
+              </table>
+           </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Call Overlay -->
+  <div id="media-overlay">
+    <div class="media-info">
+      <h2 id="media-name">User Connect</h2>
+      <span id="media-desc">Incoming Voice Connection...</span>
+    </div>
+    <div class="video-viewport">
+       <video id="remote-video" autoplay playsinline></video>
+       <audio id="remote-audio" autoplay playsinline></audio>
+       <video id="local-video" autoplay playsinline muted></video>
+    </div>
+    <div class="call-controls">
+       <div class="c-btn" id="call-mic"><i class="fas fa-microphone"></i></div>
+       <div class="c-btn" id="call-cam" style="display: none;"><i class="fas fa-video"></i></div>
+       <div class="c-btn hangup" id="call-end"><i class="fas fa-phone-hangup"></i></div>
+    </div>
+  </div>
+
+  <!-- Incoming Modal -->
+  <div id="incoming-modal">
+    <div class="modal-box">
+      <div style="font-size: 56px; color: var(--primary); margin-bottom: 24px;"><i class="fas fa-bell-on"></i></div>
+      <h3>New Connect Request</h3>
+      <p id="incoming-msg-text">Preparing session details...</p>
+      <div class="m-btns">
+        <button class="m-btn btn-rej" id="m-btn-rej">DECLINE</button>
+        <button class="m-btn btn-acc" id="m-btn-acc">START SESSION</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let socket;
+    let provider = null;
+    let users = [];
+    let activeUserId = null;
+    let currentSessionId = null;
+    let timeRemaining = 0;
+    let timerInt = null;
+
+    // Local Persistence
+    const saved = localStorage.getItem('bt_provider');
+    if (saved) {
+      provider = JSON.parse(saved);
+      initApp();
+    }
+
+    // Date
+    document.getElementById('current-date').innerText = new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'short' });
+
+    // Login
+    // Login button logic moved below
+
+    function initApp() {
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('app-container').style.display = 'flex';
+      document.getElementById('p-name-card').innerText = provider.name || provider.phone;
+      document.getElementById('avatar-letter').innerText = (provider.name || 'P').charAt(0).toUpperCase();
+
+      // Sidebar Toggle Logic
+      document.getElementById('sidebar-toggle').onclick = () => {
+        document.querySelector('.sidebar').classList.toggle('collapsed');
+      };
+
+      socket = io();
+      socket.emit('provider_online', { providerId: provider.id });
+
+      // Views Swapping
+      document.querySelectorAll('.nav-item').forEach(btn => {
+        btn.onclick = () => {
+          document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          document.querySelectorAll('.view-content').forEach(v => v.classList.remove('active'));
+          const viewId = 'view-' + btn.dataset.view;
+          document.getElementById(viewId).classList.add('active');
+          document.getElementById('view-title').innerText = btn.querySelector('span').innerText;
+          if (btn.dataset.view === 'inbox') fetchInbox();
+          if (btn.dataset.view === 'earnings') fetchHistory();
+        };
+      });
+
+      // Stats Fetch
+      fetchStats();
+      socket.on('wallet_update', fetchStats);
+
+      // Session UI Logic
+      socket.on('incoming_request', (req) => {
+        const modal = document.getElementById('incoming-modal');
+        document.getElementById('incoming-msg-text').innerText = `${req.userName} is requesting a ${req.type} session for ${req.duration} minutes. Accept to begin.`;
+        modal.style.display = 'flex';
+        
+        document.getElementById('m-btn-acc').onclick = () => {
+          socket.emit('accept_interaction', { ...req, providerId: provider.id });
+          modal.style.display = 'none';
+          document.querySelector('[data-view="inbox"]').click(); // Jump to inbox
+          const u = { id: req.userId, name: req.userName };
+          if (!users.find(x => x.id === u.id)) users.unshift(u);
+          activeUserId = u.id; // SET ACTIVE USER IMMEDIATELY
+          openChat(u);
+        };
+        
+        document.getElementById('m-btn-rej').onclick = () => {
+           socket.emit('reject_interaction', { userId: req.userId, providerId: provider.id });
+           modal.style.display = 'none';
+        }
+      });
+
+      socket.on('request_cancelled', () => {
+        document.getElementById('incoming-modal').style.display = 'none';
+      });
+
+      socket.on('session_started', ({ sessionId, type, duration }) => {
+        currentSessionId = sessionId;
+        timeRemaining = duration * 60;
+        document.getElementById('chat-timer').style.display = 'block';
+        updateTimer();
+        if (timerInt) clearInterval(timerInt);
+        timerInt = setInterval(() => {
+          timeRemaining--;
+          updateTimer();
+          if (timeRemaining <= 0) clearInterval(timerInt);
+        }, 1000);
+
+        if (type !== 'Chat') startMedia(type);
+      });
+
+      socket.on('session_ended', () => {
+        clearInterval(timerInt);
+        currentSessionId = null; // Clear session reference
+        document.getElementById('chat-timer').style.display = 'none';
+        document.getElementById('chat-input-row').style.display = 'none';
+        stopMedia();
+        fetchStats();
+        fetchHistory(); // Refresh history real-time
+      });
+
+      socket.on('receive_message', (msg) => {
+        if (activeUserId === msg.userId) renderMsg(msg);
+        fetchInbox();
+      });
+
+      // Logout
+      document.getElementById('logout-trigger').onclick = () => {
+        localStorage.removeItem('bt_provider');
+        window.location.reload();
+      };
+      // Add WebRTC and message DOM events
+      socket.on('webrtc_signal', async ({ signal }) => {
+         console.log('[WebRTC] Signal Received:', signal.type);
+         if (!pc) createPeerConnection();
+         
+         try {
+           if (signal.type==='offer') { 
+             if (pc.signalingState !== 'stable') return console.log('[WebRTC] Offer ignored: state is', pc.signalingState);
+             await pc.setRemoteDescription(new RTCSessionDescription(signal)); 
+             const ans = await pc.createAnswer(); 
+             await pc.setLocalDescription(ans); 
+             socket.emit('webrtc_signal', {to:`chat_${activeUserId}_${provider.id}`, signal: pc.localDescription}); 
+           }
+           else if (signal.type==='answer') { 
+             if (pc.signalingState !== 'have-local-offer') return console.log('[WebRTC] Answer ignored: state is', pc.signalingState);
+             await pc.setRemoteDescription(new RTCSessionDescription(signal)); 
+           }
+           else if (signal.type==='candidate') { 
+             await pc.addIceCandidate(new RTCIceCandidate(signal.candidate)); 
+           }
+         } catch (e) {
+           console.error('[WebRTC] Signaling Error:', e, 'at state:', pc.signalingState);
+         }
+      });
+
+      document.getElementById('call-end').onclick = () => socket.emit('end_interaction', { sessionId: currentSessionId });
+      
+      document.getElementById('msg-send').onclick = () => {
+         const input = document.getElementById('msg-input');
+         if (!input.value.trim()) return;
+         console.log('[Chat] Sending message to:', activeUserId);
+         socket.emit('send_message', { userId: activeUserId, providerId: provider.id, senderId: provider.id, text: input.value });
+         input.value = '';
+      }
+
+      document.getElementById('msg-input').addEventListener('keydown', (e) => {
+         if (e.key === 'Enter') document.getElementById('msg-send').click();
+      });
+
+    } // end initApp()
+
+    // --- Firebase OTP Integration ---
+    // Import Firebase SDKs (using compat mode for easier integration in vanilla JS)
+    const firebaseScript = document.createElement('script');
+    firebaseScript.src = "https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js";
+    document.head.appendChild(firebaseScript);
+
+    const authScript = document.createElement('script');
+    authScript.src = "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js";
+    document.head.appendChild(authScript);
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBOy_Z0jZxXZKQUsZx0ZFhOlxkXdx5a7qE",
+      authDomain: "shepanel-5b694.firebaseapp.com",
+      projectId: "shepanel-5b694",
+      storageBucket: "shepanel-5b694.firebasestorage.app",
+      messagingSenderId: "243705869945",
+      appId: "1:243705869945:web:c6227853a47d057474c6a8",
+      measurementId: "G-WE43G5H9FC"
+    };
+
+    let confirmationResult;
+    
+    authScript.onload = () => {
+      firebase.initializeApp(firebaseConfig);
+      // Doc recommendation: Use device language for SMS and Recaptcha
+      firebase.auth().useDeviceLanguage();
+      
+      window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
+        'size': 'invisible',
+        'callback': (response) => {
+           console.log('reCAPTCHA solved');
+        }
+      });
+    };
+
+    async function sendOTP() {
+       const phone = document.getElementById('login-phone').value;
+       if (!phone) return alert('Enter phone number first');
+       
+       const formattedPhone = phone.startsWith('+') ? phone : '+91' + phone;
+       const btn = document.getElementById('btn-get-otp');
+       btn.innerText = 'SENDING...';
+       btn.disabled = true;
+
+       try {
+         confirmationResult = await firebase.auth().signInWithPhoneNumber(formattedPhone, window.recaptchaVerifier);
+         document.getElementById('otp-grp').style.display = 'block';
+         document.getElementById('pwd-grp').style.display = 'none';
+         
+         const loginBtn = document.getElementById('login-btn');
+         loginBtn.innerText = 'VERIFY & LOG IN';
+         loginBtn.style.opacity = '1';
+         loginBtn.style.pointerEvents = 'auto';
+         
+         document.getElementById('btn-get-otp').style.display = 'none';
+         document.getElementById('error-msg').innerText = 'OTP sent to ' + formattedPhone;
+         document.getElementById('error-msg').style.color = 'var(--success)';
+       } catch (err) {
+         console.error(err);
+         // Doc requirement: Reset Recaptcha on error so user can try again
+         if (window.grecaptcha && window.recaptchaWidgetId !== undefined) {
+            grecaptcha.reset(window.recaptchaWidgetId);
+         }
+         
+         let msg = err.message;
+         if (err.code === 'auth/billing-not-enabled') {
+            msg = 'SMS Limit Reached. Please use a "Test Phone Number" from Firebase Console to continue testing for free.';
+         }
+         
+         document.getElementById('error-msg').innerText = 'Error: ' + msg;
+         document.getElementById('error-msg').style.color = 'var(--danger)';
+         btn.innerText = 'GET OTP';
+         btn.disabled = false;
+       }
+    }
+
+    let isRegisterMode = false;
+    function setupAuthToggle() {
+       const toggle = document.getElementById('auth-toggle');
+       const loginBtn = document.getElementById('login-btn');
+       const otpBtn = document.getElementById('btn-get-otp');
+       const pwdGrp = document.getElementById('pwd-grp');
+       if (!toggle) return;
+       
+       toggle.onclick = () => {
+          isRegisterMode = !isRegisterMode;
+          toggle.innerText = isRegisterMode ? 'Already have an account? Login' : "Don't have an account? Join ShePanel";
+          loginBtn.innerText = isRegisterMode ? 'START REGISTRATION' : 'SECURE LOGIN';
+          
+          // Logic: Hide password during signup (until OTP)
+          // Show password during login
+          pwdGrp.style.display = isRegisterMode ? 'none' : 'block';
+          otpBtn.style.display = isRegisterMode ? 'block' : 'none';
+          
+          if (isRegisterMode) {
+             loginBtn.style.opacity = '0.2';
+             loginBtn.style.pointerEvents = 'none';
+          } else {
+             loginBtn.style.opacity = '1';
+             loginBtn.style.pointerEvents = 'auto';
+          }
+       };
+    }
+    setupAuthToggle();
+
+    let firebaseIdToken = null;
+
+    async function verifyOTP() {
+      const code = document.getElementById('login-otp').value;
+      if (!code) return alert('Enter the 6-digit code');
+
+      try {
+        const result = await confirmationResult.confirm(code);
+        firebaseIdToken = await result.user.getIdToken();
+        
+        // Unlock Registration Button on success
+        const loginBtn = document.getElementById('login-btn');
+        loginBtn.style.opacity = '1';
+        loginBtn.style.pointerEvents = 'auto';
+
+        if (isRegisterMode) {
+           // Transition to Profile Creation UI
+           document.getElementById('otp-grp').style.display = 'none';
+           document.getElementById('signup-extra').style.display = 'block';
+           document.getElementById('error-msg').innerText = 'Phone Verified! Please set your profile.';
+           document.getElementById('error-msg').style.color = 'var(--success)';
+           return;
+        }
+
+        // Standard Login
+        const res = await fetch('/api/provider/firebase-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idToken: firebaseIdToken })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          provider = data;
+          localStorage.setItem('bt_provider', JSON.stringify(provider));
+          initApp();
+        } else {
+          // If not found in login mode, maybe suggest signup
+          document.getElementById('error-msg').innerText = data.error + " Use 'Join' to register.";
+          document.getElementById('error-msg').style.color = 'var(--danger)';
+        }
+      } catch (err) {
+        document.getElementById('error-msg').innerText = 'Invalid OTP code';
+        document.getElementById('error-msg').style.color = 'var(--danger)';
+      }
+    }
+
+    async function finishRegistration() {
+       const name = document.getElementById('reg-name').value;
+       const password = document.getElementById('reg-pwd').value;
+       if (!name || !password) return alert('Please enter both name and password');
+
+       const res = await fetch('/api/provider/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idToken: firebaseIdToken, name, password })
+       });
+       const data = await res.json();
+       if (res.ok) {
+          provider = data;
+          localStorage.setItem('bt_provider', JSON.stringify(provider));
+          initApp();
+       } else {
+          document.getElementById('error-msg').innerText = data.error;
+          document.getElementById('error-msg').style.color = 'var(--danger)';
+       }
+    }
+
+    // Update login-btn logic to handle multiple steps
+    document.getElementById('login-btn').onclick = async () => {
+      // Step 1: Finish Registration if fields are visible
+      if (document.getElementById('signup-extra').style.display === 'block') {
+         return finishRegistration();
+      }
+      
+      // Step 2: Verify OTP if field is visible
+      if (document.getElementById('otp-grp').style.display === 'block') {
+         return verifyOTP();
+      }
+
+      // Step 0: Classic Password Login
+      const phone = document.getElementById('login-phone').value;
+      const pwd = document.getElementById('login-pwd').value;
+      if (!phone || !pwd) return;
+      
+      const res = await fetch('/api/provider/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, password: pwd })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        provider = data;
+        localStorage.setItem('bt_provider', JSON.stringify(provider));
+        initApp();
+      } else {
+        document.getElementById('error-msg').innerText = data.error;
+      }
+    };
+
+    // Global Functions
+    async function fetchStats() {
+      const res = await fetch(`/api/provider/${provider.id}`);
+      const data = await res.json();
+      document.getElementById('stat-balance').innerText = `₹${data.walletBalance.toFixed(2)}`;
+      document.getElementById('stat-today').innerText = `₹${(data.walletBalance % 500).toFixed(2)}`;
+    }
+
+    async function fetchHistory() {
+      const res = await fetch(`/api/provider/history/${provider.id}`);
+      const sessions = await res.json();
+      renderHistory(sessions);
+    }
+
+    function renderHistory(sessions) {
+      const list = document.getElementById('history-target');
+      list.innerHTML = sessions.length === 0 ? '<tr><td colspan="5" style="text-align:center; padding: 60px; color: var(--text-dim); font-weight: 500;">No verified sessions recorded yet</td></tr>' : '';
+      sessions.forEach(s => {
+        const date = new Date(s.startTime).toLocaleDateString('en-IN', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+        const typeClass = `type-${s.type.toLowerCase()}`;
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td style="font-weight: 700;">${date}</td>
+          <td>${s.userName}</td>
+          <td><span class="type-badge ${typeClass}">${s.type}</span></td>
+          <td style="font-family: monospace; font-weight: 700;">${s.duration} min</td>
+          <td style="color: var(--success); font-weight: 800;">+ ₹${s.cost.toFixed(2)}</td>
+        `;
+        list.appendChild(row);
+      });
+    }
+
+    async function fetchInbox() {
+      const res = await fetch(`/api/provider/inbox/${provider.id}`);
+      users = await res.json();
+      renderUsers();
+    }
+
+    function renderUsers() {
+      const list = document.getElementById('user-list-target');
+      list.innerHTML = users.length === 0 ? '<div style="padding: 40px; color: var(--text-dim); text-align: center; font-weight: 500; opacity: 0.5;">Your live inbox is empty</div>' : '';
+      users.forEach(u => {
+        const div = document.createElement('div');
+        div.className = `user-item ${activeUserId === u.id ? 'active' : ''}`;
+        div.innerHTML = `
+          <div class="u-avatar">${u.name.charAt(0)}</div>
+          <div class="u-info">
+            <span class="u-name">${u.name}</span>
+            <span class="u-last">View connection history</span>
+          </div>
+        `;
+        div.onclick = () => openChat(u);
+        list.appendChild(div);
+      });
+    }
+
+    async function openChat(u) {
+      activeUserId = u.id;
+      document.getElementById('chat-header-meta').style.display = 'flex';
+      document.getElementById('active-chat-name').innerText = u.name;
+      
+      document.getElementById('chat-input-row').style.display = (currentSessionId && activeUserId === u.id) ? 'flex' : 'none';
+      
+      renderUsers();
+      socket.emit('join_chat', { userId: u.id, providerId: provider.id });
+      
+      const res = await fetch(`/api/chat/${u.id}/${provider.id}`);
+      const history = await res.json();
+      const c = document.getElementById('messages');
+      c.innerHTML = '';
+      history.forEach(renderMsg);
+      c.scrollTop = c.scrollHeight;
+    }
+
+    function renderMsg(msg) {
+      const container = document.getElementById('messages');
+      const wrap = document.createElement('div');
+      wrap.className = `msg-wrap ${msg.senderId === provider.id ? 'me' : 'them'}`;
+      const time = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      wrap.innerHTML = `<div class="msg">${msg.text}</div><span class="msg-time">${time}</span>`;
+      container.appendChild(wrap);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function updateTimer() {
+      const m = Math.floor(timeRemaining / 60).toString().padStart(2, '0');
+      const s = (timeRemaining % 60).toString().padStart(2, '0');
+      document.getElementById('chat-timer').innerText = `${m}:${s}`;
+      document.getElementById('stat-time').innerText = `${m}:${s}`;
+    }
+
+    // WebRTC helpers (global, no socket dependency)
+    let pc, localStream;
+    async function startMedia(type) {
+       document.getElementById('media-overlay').style.display = 'flex';
+       document.getElementById('media-name').innerText = document.getElementById('active-chat-name').innerText;
+       document.getElementById('media-desc').innerText = `${type} Connection Active...`;
+       document.getElementById('call-cam').style.display = type === 'Video' ? 'flex' : 'none';
+       document.getElementById('local-video').style.display = type === 'Video' ? 'block' : 'none';
+
+       try {
+          console.log('[Media] Acquiring devices for type:', type);
+          localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: type === 'Video' });
+          document.getElementById('local-video').srcObject = localStream;
+          
+          if (!pc) createPeerConnection();
+          
+          localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+          
+          const offer = await pc.createOffer({
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: type === 'Video'
+          });
+          await pc.setLocalDescription(offer);
+          console.log('[WebRTC] Sending Offer');
+          socket.emit('webrtc_signal', { to: `chat_${activeUserId}_${provider.id}`, signal: {type:'offer', sdp:pc.localDescription}});
+       } catch (e) { console.error('Media Start Error:', e); }
+    }
+
+    function createPeerConnection() {
+      console.log('[WebRTC] Creating RTCPeerConnection');
+      pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+      
+      pc.onicecandidate = e => { 
+        if(e.candidate) {
+          socket.emit('webrtc_signal', { to: `chat_${activeUserId}_${provider.id}`, signal: {type:'candidate', candidate:e.candidate}}); 
+        }
+      };
+      
+      pc.ontrack = e => { 
+        console.log('[WebRTC] Received remote track:', e.track.kind);
+        const stream = e.streams[0] || new MediaStream([e.track]);
+        if (e.track.kind === 'video') {
+         document.getElementById('remote-video').srcObject = stream;
+        } else {
+         document.getElementById('remote-audio').srcObject = stream;
+        }
+      };
+      
+      pc.oniceconnectionstatechange = () => console.log('[WebRTC] ICE State:', pc.iceConnectionState);
+    }
+
+    function stopMedia() {
+       if (localStream) localStream.getTracks().forEach(t => t.stop());
+       if (pc) pc.close();
+       pc = null;
+       document.getElementById('media-overlay').style.display = 'none';
+    }
+  </script>
+</body>
+</html>
