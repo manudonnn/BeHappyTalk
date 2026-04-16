@@ -384,15 +384,26 @@ export default function ChatScreen() {
       >
         {/* Dynamic View Content */}
         {type && (type === 'Call' || type === 'Video') ? (
-            <CallView 
-                type={type as any}
-                provider={contact}
-                timeLeft={timeLeft}
-                wallet={wallet}
-                onEndCall={endSession}
-                localStream={localStream}
-                remoteStream={remoteStream}
-            />
+            <View style={{ flex: 1 }}>
+              <CallView 
+                  type={type as any}
+                  provider={contact}
+                  timeLeft={timeLeft}
+                  wallet={wallet}
+                  onEndCall={endSession}
+                  localStream={localStream}
+                  remoteStream={remoteStream}
+              />
+              {isConnecting && !remoteStream && (
+                <View style={styles.connectingOverlay}>
+                  <ActivityIndicator size="large" color="#FACC15" />
+                  <Text style={styles.connectingText}>Connecting to {contact.name}...</Text>
+                  <Text style={styles.encryptionText}>
+                    <MaterialCommunityIcons name="shield-check" size={14} color="#34D399" /> Peer-to-Peer Secured
+                  </Text>
+                </View>
+              )}
+            </View>
         ) : (
             <>
                 {/* Header */}
@@ -507,29 +518,6 @@ export default function ChatScreen() {
             </>
         )}
       </KeyboardAvoidingView>
-      {/* Professional Calling Overlay */}
-      {type && (
-        <View style={StyleSheet.absoluteFill}>
-          <CallView
-            type={type as any}
-            provider={contact}
-            timeLeft={timeLeft}
-            wallet={wallet}
-            localStream={localStream}
-            remoteStream={remoteStream}
-            onEndCall={handleEndCall}
-          />
-          {isConnecting && !remoteStream && (
-             <View style={styles.connectingOverlay}>
-               <ActivityIndicator size="large" color="#FACC15" />
-               <Text style={styles.connectingText}>Connecting to {contact.name}...</Text>
-               <Text style={styles.encryptionText}>
-                 <MaterialCommunityIcons name="shield-check" size={14} color="#34D399" /> Peer-to-Peer Secured
-               </Text>
-             </View>
-          )}
-        </View>
-      )}
     </SafeAreaView>
   );
 }
