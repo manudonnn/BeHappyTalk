@@ -10,6 +10,8 @@ import {
     RTCView, 
     MediaStream 
 } from 'react-native-webrtc';
+import InCallManager from 'react-native-incall-manager';
+import { useKeepAwake } from 'expo-keep-awake';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -56,9 +58,20 @@ const PulseCircle = ({ delay = 0, size = 160 }: { delay?: number; size?: number 
 };
 
 export default function CallView({ type, provider, timeLeft, onEndCall, wallet, localStream, remoteStream }: CallViewProps) {
+  useKeepAwake();
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeaker, setIsSpeaker] = useState(true);
   const [cameraType, setCameraType] = useState<'front' | 'environment'>('front');
+
+  useEffect(() => {
+    // Force speakerphone for video calls, allow toggle for audio calls
+    if (type === 'Video') {
+        InCallManager.setSpeakerphoneOn(true);
+        setIsSpeaker(true);
+      } else {
+        InCallManager.setSpeakerphoneOn(isSpeaker);
+      }
+  }, [isSpeaker, type]);
 
   useEffect(() => {
     // Handle Mute

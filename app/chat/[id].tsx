@@ -8,6 +8,7 @@ import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import io from 'socket.io-client';
 import { useAuth } from '../../hooks/useAuth';
+import { Audio } from 'expo-av';
 import { API_URL, SOCKET_URL } from '../../constants/ServerConfig';
 import CallView from '../../components/CallView';
 import {
@@ -17,6 +18,7 @@ import {
     mediaDevices,
     MediaStream
 } from 'react-native-webrtc';
+import InCallManager from 'react-native-incall-manager';
 
 
 
@@ -41,6 +43,7 @@ export default function ChatScreen() {
   const [isSending, setIsSending] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [wallet, setWallet] = useState<number | null>(null);
+  const [isConnecting, setIsConnecting] = useState(false);
 
   // WebRTC States
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -50,6 +53,7 @@ export default function ChatScreen() {
 
   const socketRef = useRef<any>(null);
   const flatListRef = useRef<FlatList>(null);
+  const soundRef = useRef<Audio.Sound | null>(null);
 
   const userId = user?.id;
 
@@ -66,6 +70,43 @@ export default function ChatScreen() {
      }, 1000);
      return () => clearInterval(timer);
   }, [timeLeft]);
+
+  // Ringback Logic
+  const stopRingback = async () => {
+    if (soundRef.current) {
+        try {
+            await soundRef.current.stopAsync();
+            await soundRef.current.unloadAsync();
+            soundRef.current = null;
+        } catch (e) {
+            console.log("Error stopping sound", e);
+        }
+    }
+  };
+
+  const playRingback = async () => {
+    await stopRingback();
+    try {
+        const { sound } = await Audio.Sound.createAsync(
+            { uri: 'https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3' }, // Professional ringback clip
+            { shouldPlay: true, isLooping: true, volume: 0.5 }
+        );
+        soundRef.current = sound;
+    } catch (e) {
+        console.log("Error playing sound", e);
+    }
+  };
+
+  useEffect(() => {
+    if (type && !remoteStream) {
+        setIsConnecting(true);
+        playRingback();
+    } else {
+        setIsConnecting(false);
+        stopRingback();
+    }
+    return () => { stopRingback(); };
+  }, [type, remoteStream]);
 
   useEffect(() => {
     if (!userId || !providerId) return;
@@ -192,6 +233,9 @@ export default function ChatScreen() {
   }, [userId, providerId]);
 
   const endSession = () => {
+    stopRingback();
+    InCallManager.stop();
+    stopMedia();
     if (sessionId && socketRef.current) {
       socketRef.current.emit('end_interaction', { sessionId });
     }
@@ -463,11 +507,44 @@ export default function ChatScreen() {
             </>
         )}
       </KeyboardAvoidingView>
+      {/* Professional Calling Overlay */}
+      {type && (
+        <View style={StyleSheet.absoluteFill}>
+          <CallView
+            type={type as any}
+            provider={contact}
+            timeLeft={timeLeft}
+            wallet={wallet}
+            localStream={localStream}
+            remoteStream={remoteStream}
+            onEndCall={handleEndCall}
+          />
+          {isConnecting && !remoteStream && (
+             <View style={styles.connectingOverlay}>
+               <ActivityIndicator size="large" color="#FACC15" />
+               <Text style={styles.connectingText}>Connecting to {contact.name}...</Text>
+               <Text style={styles.encryptionText}>
+                 <MaterialCommunityIcons name="shield-check" size={14} color="#34D399" /> Peer-to-Peer Secured
+               </Text>
+             </View>
+          )}
+        </View>
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  connectingOverlay: { 
+    ...StyleSheet.absoluteFillObject, 
+    backgroundColor: 'rgba(5, 7, 10, 0.98)', 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    gap: 16,
+    zIndex: 100
+  },
+  connectingText: { color: 'white', fontSize: 18, fontWeight: 'bold', marginTop: 8 },
+  encryptionText: { color: 'rgba(255,255,255,0.4)', fontSize: 12, fontWeight: '600' },
   safeArea: { flex: 1, backgroundColor: '#1A1C23', paddingTop: Platform.OS === 'android' ? RNStatusBar.currentHeight : 0 },
   container: { flex: 1, backgroundColor: '#0A0B10' },
 

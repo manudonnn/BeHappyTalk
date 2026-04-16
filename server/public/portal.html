@@ -514,14 +514,21 @@
         document.getElementById('incoming-msg-text').innerText = `${req.userName} is requesting a ${req.type} session for ${req.duration} minutes. Accept to begin.`;
         modal.style.display = 'flex';
         
-        document.getElementById('m-btn-acc').onclick = () => {
-          socket.emit('accept_interaction', { ...req, providerId: provider.id });
+        document.getElementById('m-btn-acc').onclick = async () => {
           modal.style.display = 'none';
           document.querySelector('[data-view="inbox"]').click(); // Jump to inbox
           const u = { id: req.userId, name: req.userName };
           if (!users.find(x => x.id === u.id)) users.unshift(u);
           activeUserId = u.id; // SET ACTIVE USER IMMEDIATELY
           openChat(u);
+          
+          // CRITICAL: WebRTC getUserMedia MUST be called here, triggered by a direct user click.
+          // Otherwise modern browsers (Chrome/Safari) will block the camera.
+          if (req.type !== 'Chat') {
+             await startMedia(req.type);
+          }
+          
+          socket.emit('accept_interaction', { ...req, providerId: provider.id });
         };
         
         document.getElementById('m-btn-rej').onclick = () => {
@@ -546,7 +553,7 @@
           if (timeRemaining <= 0) clearInterval(timerInt);
         }, 1000);
 
-        if (type !== 'Chat') startMedia(type);
+        // if (type !== 'Chat') startMedia(type); // MOVED to Accept button click to satisfy Browser User Activation policy
       });
 
       socket.on('session_ended', () => {
